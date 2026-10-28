@@ -22,7 +22,8 @@ If the arguments are exactly `review`, go to **Review mode**. Otherwise, **Captu
 ## Capture mode
 
 The goal is to be fast and then get out of the way. Do NOT investigate the finding: no source
-reading, no browser checks, no issue-tracker searches. That is what review mode is for.
+reading, no browser checks, no issue-tracker searches. That is what review mode (and
+`/park-audit`, if installed) is for.
 
 1. **Get the text.** If arguments were given, that is the finding, verbatim. If none, ask what the
    tester noticed, as the only question this turn; ask the type (step 2) after they answer.
@@ -42,15 +43,21 @@ reading, no browser checks, no issue-tracker searches. That is what review mode 
    - **run log**: the file and step where the full story lives, if the session keeps one
    - **hunch**: Claude's opinion, if any, always labeled `hunch, not checked`. Never state a cause
      as fact at capture time.
-4. **Append** under `## Open` in the parking-lot file (create the file from the layout below if it
-   is missing). One item per line, ASCII only, no line breaks inside an item:
+4. **Give it an ID.** Every item gets a permanent ID, `<initials>-<three-digit number>`, e.g.
+   `JD-026`. Initials are the first letters of the first and last words of `git config user.name`
+   ("Jane Doe" -> `JD`). The number is one more than the highest number already used with those
+   initials anywhere in the file (Open or Closed). The ID never changes, even if the line is edited
+   or the item is closed; `/park-audit` keys its write-ups to it. The initials keep IDs from
+   colliding if parking lots from different people are ever merged.
+5. **Append** under `## Open` in the parking-lot file (create the file from the layout below if it
+   is missing). One item per line, ASCII only, no line breaks inside an item, the ID first:
 
    ```
-   - [ ] 2026-10-05 | BUG | "The expired coupon still applied -- total dropped by 10%." | during: SHOP-142 [Coupon codes at checkout], edge case E2 | doing: applying a second coupon to check that only one is allowed | page: /cart | test data: coupon SAVE10 expired 2026-10-04; cart has item 1017, qty 2 | evidence: tester's screenshot 3 -- cart shows "SAVE10 applied" | run log: shop-142-test-run.md, step E2
+   - [ ] JD-003 | 2026-10-05 | BUG | "The expired coupon still applied -- total dropped by 10%." | during: SHOP-142 [Coupon codes at checkout], edge case E2 | doing: applying a second coupon to check that only one is allowed | page: /cart | test data: coupon SAVE10 expired 2026-10-04; cart has item 1017, qty 2 | evidence: tester's screenshot 3 -- cart shows "SAVE10 applied" | run log: shop-142-test-run.md, step E2
    ```
 
    Use the real current date. The tester's words go in quotes exactly as written.
-5. **Confirm in one line** ("Parked as bug #3.") and **resume**: name the step that was in
+6. **Confirm in one line** ("Parked as bug JD-003.") and **resume**: name the step that was in
    progress and what result is still owed, in one sentence. Do not repeat the full instruction if
    the tester already has it -- say what is outstanding ("Still waiting on E2: the cart total
    after the second coupon."). If no step was in progress, just confirm.
@@ -76,7 +83,11 @@ to-do.
    - **Where:** the page, item, or order
    - **What you were doing:** the ticket, the step, and what that step was for
    - **What you saw:** the tester's words, plus what the screen showed
-   - **What's known:** what is verified (and how) versus what is a guess
+   - **What's known:** what is verified (and how) versus what is a guess. If the line carries a
+     "code audit" pointer (written by `/park-audit`), read that item's newest section in
+     `~/.claude/park-audits.md` (sections are headed `## <title> (<ID>)`; the newest is lowest in
+     the file) and summarize its verdict, the why, and any existing ticket it found, naming the
+     audit date and commit.
    - **History:** earlier reviews of this item, or "first time in review"
 
    Then ask ONE question:
@@ -90,15 +101,16 @@ to-do.
      Nothing is filed without the tester's explicit approval.
    - **Before asking which tickets to draft** (or how many), search the issue tracker for
      existing tickets first, if Claude has access, and report what was found and what the search
-     covered. The number of new tickets depends on what already exists.
+     covered (some tracker searches match titles only). The number of new tickets depends on what
+     already exists.
    - **Tester drives**: the tester runs the test and reports results; Claude gives ONE action per
      turn and does not look at the page. The tester's report is the evidence, labeled as theirs.
    - **Tester drives, Claude checks**: give ONE action per turn; after the tester reports, read
      the page in the browser to confirm what they saw, then give the next action. Claude does not
      click or type.
    - **Drop**: ask for nothing more; record it as dropped.
-6. When an item is finished, move it from `## Open` to `## Closed`, changing `[ ]` to `[x]` and
-   appending the outcome and date, e.g. `| closed 2026-10-07: filed SHOP-150` or
+6. When an item is finished, move it from `## Open` to `## Closed` (ID unchanged), changing `[ ]`
+   to `[x]` and appending the outcome and date, e.g. `| closed 2026-10-07: filed SHOP-150` or
    `| closed 2026-10-07: dropped, works as intended`.
 7. Then offer the next item, or stop if the tester wants to stop. Items left open stay open.
 
@@ -117,6 +129,14 @@ paragraphs.
 - **End with Expected and Actual**, one line each. Actual quotes the exact error or message text.
 - **Screenshots go directly below the step they belong to**, so the reader reads the step and then
   sees its picture. Screenshots are welcome but not required; some bugs need none.
+- **Screenshots can also go under Expected or Actual**: under Actual to show the wrong result,
+  and under Expected when there is a picture of the correct behavior to compare against.
+- **When posting to the tracker, embed each screenshot where it belongs**, under its step,
+  Expected, or Actual line. An attachment alone does not count -- the reader must see the picture
+  in place.
+- **Caption a result screenshot as "after <action>", and describe that result in the step text.**
+  A picture taken after a click sits under the step that says to click, so without that, the
+  reader takes it as the before state.
 - **Say whether screenshots exist.** If there are none, say so plainly ("No screenshots for this
   one") so the tester can decide whether the ticket needs one.
 - **Frequency line after Actual**: how often the bug has been seen, from what actually happened,
@@ -133,7 +153,7 @@ Setup: signed in as a customer; coupon SAVE10 expired yesterday; cart empty.
 3. Go to /cart
 4. In the Coupon field, type SAVE10
 5. Click "Apply coupon"
-   [tester's screenshot 3: cart shows "SAVE10 applied", total reduced 10%]
+   [tester's screenshot 3, after clicking "Apply coupon": cart shows "SAVE10 applied", total reduced 10%]
 Expected: "This coupon has expired"; total unchanged.
 Actual: "SAVE10 applied"; total reduced by 10%.
 Frequency: 2 of 2 tries.
@@ -145,6 +165,7 @@ Frequency: 2 of 2 tries.
 # Parking lot
 
 Side findings parked during pair testing with /park. Open items first; closed items keep their outcome.
+Code-audit write-ups from /park-audit live in park-audits.md, keyed by item ID.
 
 ## Open
 
