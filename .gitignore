@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Python (park-audit's helper script)
+__pycache__/
+*.pyc
+
+# Local Claude Code settings
+.claude/settings.local.json
