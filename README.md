@@ -82,7 +82,11 @@ evidence:
 ```
 /park-audit        # audit up to 3 groups of items
 /park-audit 5 full # up to 5 groups, re-audit everything
+/park-audit all    # every group, in waves of 3, one report at the end
 ```
+
+Before launching, it prints which groups and items it is about to audit. An entry whose text says
+not to audit it yet is skipped and listed as skipped on purpose.
 
 Related items (same page, same feature) are grouped and handed to `park-auditor` subagents, one
 per group, running in parallel on a read-only copy of the code at the current base branch. A
