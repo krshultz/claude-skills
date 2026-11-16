@@ -1,7 +1,7 @@
 ---
 name: park-audit
 description: Supplement to /park. Checks open items in ~/.claude/parking-lot.md against the source code with read-only Opus park-auditor subagents -- one per group of related items -- judging whether each parked bug/test/research item holds up, whether it was fixed since parking, whether it is pre-existing or recent, and whether a tracker ticket already covers it. Full write-ups go to park-audits.md keyed by item ID; the parking-lot line gets a short pointer. Re-runs are incremental: an item is re-audited only if code its last audit read has changed. Use when the user types /park-audit, or asks to audit, verify, or check the parked items against the code.
-argument-hint: "[max auditors this run, default 3] [full]"
+argument-hint: "[max auditors this run, default 3] [all] [full]"
 ---
 
 # Park audit
@@ -20,6 +20,21 @@ Arguments given: `$ARGUMENTS`
 - A number N: launch at most N auditors this run (default 3). Items left over are reported as
   "not yet audited -- run /park-audit again".
 - `full`: ignore the incremental check and re-audit every open item (still capped at N auditors).
+- `all`: run until done. Audit every group that needs it, in waves of N auditors at a time
+  (default 3): launch a wave, check and write each result as it arrives, and launch the next wave
+  only when every auditor in the current one has finished. Nothing is held for a later run. The
+  preview (step 6) is printed once, before the first wave, and lists every group with its wave
+  number; the report (step 9) is written once, after the last wave. Between waves, print one line
+  ("Wave 2 of 5 done: <IDs written>; starting wave 3"), not a report. Re-read `parking-lot.md`
+  before each wave's writes, as step 7 says. `all` and `full` combine.
+
+## Entries that say not to audit them
+
+Skip any open entry whose text says not to audit it or not to read its code yet (for example
+"code not read yet, on purpose -- do not audit before I say so"). A skipped entry gets no auditor
+and nothing written, even with `full` or `all`; it is listed under "skipped on purpose" in the
+preview and the report, with the reason quoted from the entry. Audit it only when the user says
+so in this session.
 
 ## Setup
 
@@ -80,8 +95,9 @@ header if the file is missing.
    same code for them: the same page, controller, or feature (e.g. gift cards, checkout, the
    order-detail page). At most 5 items per group; an item that shares code with nothing goes
    alone. Groups are your judgment from the entries' text (pages, URLs, tickets, wording), not
-   from reading code. Order groups oldest-item first; take the first N groups this run, and hold
-   the rest.
+   from reading code. Leave out entries skipped under "Entries that say not to audit them". Order
+   groups oldest-item first; take the first N groups this run, and hold the rest. With `all`,
+   nothing is held: number the groups into waves of N in that order.
 
 5. **If at least one group runs, prepare a read-only copy of the code:**
    ```
@@ -91,8 +107,14 @@ header if the file is missing.
    files at that commit without touching the user's checkout.) Use this session's scratchpad
    directory for `<tmp>` if it has one.
 
-6. **Say what is about to run, in one line:** "Auditing X items in G groups against <branch>
-   <short sha> with G Opus auditors; S still hold, H held for a later run." Then launch the groups,
+6. **Say what is about to run, before launching anything.** Print:
+   - The headline: "Auditing X items in G groups against <branch> <short sha> with G Opus
+     auditors; S still hold, H held for a later run."
+   - One bullet per group that will run: a plain-words topic, then each item's ID with a few words
+     on what it is, and "re-audit: <files changed>" for items being re-audited.
+   - One line listing the held IDs, and one line for anything skipped on purpose (e.g. an entry
+     that says not to audit it yet), with the reason.
+   This is information, not a question: do not wait for a reply. Then launch the groups,
    **all in one message**, one Agent call per group, `subagent_type: "park-auditor"`,
    `run_in_background: true`, description `Audit parked: <3-5 word topic>`. The prompt for each:
    ```
@@ -135,7 +157,8 @@ header if the file is missing.
      never runs anything in the browser. A tracker match or a FIXED SINCE PARKED verdict is
      information for `/park review`, where the user decides.
 
-8. **Clean up** once every auditor has finished:
+8. **Clean up** once every auditor has finished (with `all`, after the last wave; keep the one
+   worktree for every wave, since they all audit the same commit):
    `git -C <repo> worktree remove --force <worktree path>`.
 
 9. **Report** in a final message (no tool call after it), one screen at most:
@@ -145,7 +168,9 @@ header if the file is missing.
      sentence that matters most (e.g. "already filed as SHOP-118 [Refunded gift card keeps
      balance]").
    - Still holds: the IDs whose code did not change, in one line.
-   - Not yet audited: the IDs held for a later run, in one line, with "run /park-audit again".
+   - Not yet audited: the IDs held for a later run, in one line, with "run /park-audit again"
+     (or "run /park-audit all" to finish them in one go). With `all` this line is absent.
+   - Skipped on purpose: the IDs whose entries say not to audit them yet, with the quoted reason.
    - Any "audit failed" or "audit unreliable" items, with the reason.
    - Where the detail lives: `~/.claude/park-audits.md`; `/park review` shows it under
      "What's known".
